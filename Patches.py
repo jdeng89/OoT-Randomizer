@@ -1800,40 +1800,44 @@ def patch_rom(spoiler:Spoiler, world:World, rom:Rom):
         write_rom_item(rom, 0x5B, item)
 
     # Update chest type appearance
-    if world.settings.correct_chest_appearances == 'textures':
-        symbol = rom.sym('CHEST_TEXTURE_MATCH_CONTENTS')
-        rom.write_int32(symbol, 0x00000001)
-    if world.settings.correct_chest_appearances == 'sizes':
-        symbol = rom.sym('CHEST_SIZE_MATCH_CONTENTS')
-        rom.write_int32(symbol, 0x00000001)
-        # Move Ganon's Castle's Zelda's Lullaby Chest back so is reachable if large
-        if not world.dungeon_mq['Ganons Castle']:
-            chest_name = 'Ganons Castle Light Trial Lullaby Chest'
-            location = world.get_location(chest_name)
-            item = read_rom_item(rom, location.item.index)
-            if item['chest_type'] in (GOLD_CHEST, GILDED_CHEST, SKULL_CHEST_BIG):
-                rom.write_int16(0x321B176, 0xFC40) # original 0xFC48
+    if world.settings.correct_chest_appearances != 'off':
+        if world.settings.correct_chest_appearances == 'textures':
+            symbol = rom.sym('CHEST_TEXTURE_MATCH_CONTENTS')
+            rom.write_int32(symbol, 0x00000001)
+        elif world.settings.correct_chest_appearances == 'sizes':
+            symbol = rom.sym('CHEST_SIZE_MATCH_CONTENTS')
+            rom.write_int32(symbol, 0x00000001)
+            # Move Ganon's Castle's Zelda's Lullaby Chest back so is reachable if large
+            if not world.dungeon_mq['Ganons Castle']:
+                chest_name = 'Ganons Castle Light Trial Lullaby Chest'
+                location = world.get_location(chest_name)
+                item = read_rom_item(rom, location.item.index)
+                if item['chest_type'] in (GOLD_CHEST, GILDED_CHEST, SKULL_CHEST_BIG):
+                    rom.write_int16(0x321B176, 0xFC40) # original 0xFC48
 
-        # Move Spirit Temple Compass Chest if it is a small chest so it is reachable with hookshot
-        if not world.dungeon_mq['Spirit Temple']:
-            chest_name = 'Spirit Temple Compass Chest'
-            chest_address = 0x2B6B07C
-            location = world.get_location(chest_name)
-            item = read_rom_item(rom, location.item.index)
-            if item['chest_type'] in (BROWN_CHEST, SILVER_CHEST, SKULL_CHEST_SMALL):
-                rom.write_int16(chest_address + 2, 0x0190) # X pos
-                rom.write_int16(chest_address + 6, 0xFABC) # Z pos
+            # Move Spirit Temple Compass Chest if it is a small chest so it is reachable with hookshot
+            if not world.dungeon_mq['Spirit Temple']:
+                chest_name = 'Spirit Temple Compass Chest'
+                chest_address = 0x2B6B07C
+                location = world.get_location(chest_name)
+                item = read_rom_item(rom, location.item.index)
+                if item['chest_type'] in (BROWN_CHEST, SILVER_CHEST, SKULL_CHEST_SMALL):
+                    rom.write_int16(chest_address + 2, 0x0190) # X pos
+                    rom.write_int16(chest_address + 6, 0xFABC) # Z pos
 
-        # Move Silver Gauntlets chest if it is small so it is reachable from Spirit Hover Seam
-        if world.settings.logic_rules != 'glitchless':
-            chest_name = 'Spirit Temple Silver Gauntlets Chest'
-            chest_address_0 = 0x21A02D0  # Address in setup 0
-            chest_address_2 = 0x21A06E4  # Address in setup 2
-            location = world.get_location(chest_name)
-            item = read_rom_item(rom, location.item.index)
-            if item['chest_type'] in (BROWN_CHEST, SILVER_CHEST, SKULL_CHEST_SMALL):
-                rom.write_int16(chest_address_0 + 6, 0x0172)  # Z pos
-                rom.write_int16(chest_address_2 + 6, 0x0172)  # Z pos
+            # Move Silver Gauntlets chest if it is small so it is reachable from Spirit Hover Seam
+            if world.settings.logic_rules != 'glitchless':
+                chest_name = 'Spirit Temple Silver Gauntlets Chest'
+                chest_address_0 = 0x21A02D0  # Address in setup 0
+                chest_address_2 = 0x21A06E4  # Address in setup 2
+                location = world.get_location(chest_name)
+                item = read_rom_item(rom, location.item.index)
+                if item['chest_type'] in (BROWN_CHEST, SILVER_CHEST, SKULL_CHEST_SMALL):
+                    rom.write_int16(chest_address_0 + 6, 0x0172)  # Z pos
+                    rom.write_int16(chest_address_2 + 6, 0x0172)  # Z pos
+
+        # Increase transparency of red ice blocking chests
+        set_red_ice_transparency(rom)
 
     # give dungeon items the correct messages
     add_item_messages(messages, shop_items, world)
@@ -2236,7 +2240,19 @@ def set_spirit_shortcut_actors(rom):
 
     get_actor_list(rom, set_spirit_shortcut)
 
-
+def set_red_ice_transparency(rom):
+    ice_z_coords = (
+        0xF5D8, # z=-2600 Ice Cavern Map Chest
+        0x0283, # z=283   Ice Cavern Compass Chest
+        0xFB80, # z=-1152 Ganons Castle MQ Water Trial Chest
+        )
+    def set_red_ice_actor(rom, actor_id, actor, _scene):
+        if actor_id == 0x00EF:
+            pos_z = rom.read_int16(actor + 6)
+            if pos_z in ice_z_coords:
+                # param flag 0x1000 implemented in ASM
+                rom.write_byte(actor + 14, 0x10)
+    get_actor_list(rom, set_red_ice_actor)
 
 def get_locked_doors(rom, world):
     def locked_door(rom, actor_id, actor, scene):
