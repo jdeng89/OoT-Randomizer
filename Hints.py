@@ -13,7 +13,8 @@ import itertools
 
 from HintList import getHint, getHintGroup, Hint, hintExclusions
 from Item import MakeEventItem
-from Messages import update_message_by_id
+from Messages import COLOR_MAP, update_message_by_id
+from Region import Region
 from Search import Search
 from StartingItems import everything
 from TextBox import line_wrap
@@ -270,17 +271,6 @@ def getSimpleHintNoPrefix(item):
 
 
 def colorText(gossip_text):
-    colorMap = {
-        'White':      '\x40',
-        'Red':        '\x41',
-        'Green':      '\x42',
-        'Blue':       '\x43',
-        'Light Blue': '\x44',
-        'Pink':       '\x45',
-        'Yellow':     '\x46',
-        'Black':      '\x47',
-    }
-
     text = gossip_text.text
     colors = list(gossip_text.colors) if gossip_text.colors is not None else []
     color = 'White'
@@ -296,7 +286,7 @@ def colorText(gossip_text):
                 splitText[1] = splitText[1][len(prefix):]
                 break
 
-        splitText[1] = '\x05' + colorMap[color] + splitText[1] + '\x05\x40'
+        splitText[1] = '\x05' + COLOR_MAP[color] + splitText[1] + '\x05\x40'
         text = ''.join(splitText)
 
     return text
@@ -306,9 +296,14 @@ class HintAreaNotFound(RuntimeError):
     pass
 
 
-# Peforms a breadth first search to find the closest hint area from a given spot (location or entrance)
+# Peforms a breadth first search to find the closest hint area from a given spot (region, location, or entrance)
+# and returns the name and color of that area.
 # May fail to find a hint if the given spot is only accessible from the root and not from any other region with a hint area
 def get_hint_area(spot):
+    if isinstance(spot, Region):
+        original_parent = spot
+    else:
+        original_parent = spot.parent_region
     already_checked = []
     spot_queue = [spot]
 
@@ -316,12 +311,15 @@ def get_hint_area(spot):
         current_spot = spot_queue.pop(0)
         already_checked.append(current_spot)
 
-        parent_region = current_spot.parent_region
-    
+        if isinstance(current_spot, Region):
+            parent_region = current_spot
+        else:
+            parent_region = current_spot.parent_region
+
         if parent_region.dungeon:
-            return parent_region.dungeon.hint
-        elif parent_region.hint and (spot.parent_region.name == 'Root' or parent_region.name != 'Root'):
-            return parent_region.hint
+            return parent_region.dungeon.hint, parent_region.dungeon.font_color
+        elif parent_region.hint and (original_parent.name == 'Root' or parent_region.name != 'Root'):
+            return parent_region.hint, parent_region.font_color or 'White'
 
         spot_queue.extend(list(filter(lambda ent: ent not in already_checked, parent_region.entrances)))
 
@@ -348,7 +346,7 @@ def get_woth_hint(spoiler, world, checked):
         world.woth_dungeon += 1
         location_text = getHint(location.parent_region.dungeon.name, world.settings.clearer_hints).text
     else:
-        location_text = get_hint_area(location)
+        location_text, _ = get_hint_area(location)
 
     return (GossipText('#%s# is on the way of the hero.' % location_text, ['Light Blue']), location)
 
@@ -358,7 +356,7 @@ def get_checked_areas(world, checked):
             location = world.get_location(check)
         except Exception as e:
             return check
-        return get_hint_area(location)
+        return get_hint_area(location)[0]
 
     return set(get_area_from_name(check) for check in checked)
 
@@ -447,7 +445,7 @@ def get_goal_hint(spoiler, world, checked):
     if location.parent_region.dungeon:
         location_text = getHint(location.parent_region.dungeon.name, world.settings.clearer_hints).text
     else:
-        location_text = get_hint_area(location)
+        location_text, _ = get_hint_area(location)
     
     if world_id == world.id:
         player_text = "the"
@@ -512,7 +510,7 @@ def get_barren_hint(spoiler, world, checked):
 
 
 def is_not_checked(location, checked):
-    return not (location.name in checked or get_hint_area(location) in checked)
+    return not (location.name in checked or get_hint_area(location)[0] in checked)
 
 
 def get_good_item_hint(spoiler, world, checked):
@@ -537,7 +535,7 @@ def get_good_item_hint(spoiler, world, checked):
         location_text = getHint(location.parent_region.dungeon.name, world.settings.clearer_hints).text
         return (GossipText('#%s# hoards #%s#.' % (location_text, item_text), ['Green', 'Red']), location)
     else:
-        location_text = get_hint_area(location)
+        location_text, _ = get_hint_area(location)
         return (GossipText('#%s# can be found at #%s#.' % (item_text, location_text), ['Red', 'Green']), location)
 
 
@@ -546,47 +544,143 @@ def get_specific_item_hint(spoiler, world, checked):
         logger = logging.getLogger('')
         logger.info("Named item hint requested, but pool is empty.")
         return None  
-    while True:
-        itemname = world.named_item_pool.pop(0)
-        if itemname == "Bottle" and world.settings.hint_dist == "bingo":
-            locations = [
-                location for location in world.get_filled_locations()
-                if (is_not_checked(location, checked)
-                    and location.name not in world.hint_exclusions
-                    and location.item.name in bingoBottlesForHints
-                    and not location.locked
-                    and location.name not in world.hint_type_overrides['named-item'])
-            ]
-        else:
-            locations = [
-                location for location in world.get_filled_locations()
-                if (is_not_checked(location, checked)
-                    and location.name not in world.hint_exclusions
-                    and location.item.name == itemname
-                    and not location.locked
-                    and location.name not in world.hint_type_overrides['named-item'])
-            ]
-        if len(locations) > 0:
-            break
-        if len(world.named_item_pool) == 0:
-            return None
+    if world.settings.world_count == 1:
+        while True:
+            itemname = world.named_item_pool.pop(0)
+            if itemname == "Bottle" and world.settings.hint_dist == "bingo":
+                locations = [
+                    location for location in world.get_filled_locations()
+                    if (is_not_checked(location, checked)
+                        and location.name not in world.hint_exclusions
+                        and location.item.name in bingoBottlesForHints
+                        and not location.locked
+                        and location.name not in world.hint_type_overrides['named-item']
+                        )
+                ]
+            else:
+                locations = [
+                    location for location in world.get_filled_locations()
+                    if (is_not_checked(location, checked)
+                        and location.name not in world.hint_exclusions
+                        and location.item.name == itemname
+                        and not location.locked
+                        and location.name not in world.hint_type_overrides['named-item']
+                        )
+                ]
 
-    location = random.choice(locations)
-    checked.add(location.name)
-    item_text = getHint(getItemGenericName(location.item), world.settings.clearer_hints).text
+            if len(locations) > 0:
+                break
+            
+            elif world.hint_dist_user['named_items_required']:
+                raise Exception("Unable to hint item {}".format(itemname))
+
+            else:
+                logger = logging.getLogger('')
+                logger.info("Unable to hint item {}".format(itemname))
+
+            if len(world.named_item_pool) == 0:
+                return None
+
+        location = random.choice(locations)
+        checked.add(location.name)
+        item_text = getHint(getItemGenericName(location.item), world.settings.clearer_hints).text
     
-    if location.parent_region.dungeon:
-        location_text = getHint(location.parent_region.dungeon.name, world.settings.clearer_hints).text
-        if world.hint_dist_user.get('vague_named_items', False):
-            return (GossipText('#%s# may be on the hero\'s path.' % (location_text), ['Green']), location)
+        if location.parent_region.dungeon:
+            location_text = getHint(location.parent_region.dungeon.name, world.settings.clearer_hints).text
+            if world.hint_dist_user.get('vague_named_items', False):
+                return (GossipText('#%s# may be on the hero\'s path.' % (location_text), ['Green']), location)
+            else:
+                return (GossipText('#%s# hoards #%s#.' % (location_text, item_text), ['Green', 'Red']), location)
         else:
-            return (GossipText('#%s# hoards #%s#.' % (location_text, item_text), ['Green', 'Red']), location)
+            location_text, _ = get_hint_area(location)
+            if world.hint_dist_user.get('vague_named_items', False):
+                return (GossipText('#%s# may be on the hero\'s path.' % (location_text), ['Green']), location)
+            else:
+                return (GossipText('#%s# can be found at #%s#.' % (item_text, location_text), ['Red', 'Green']), location)
+
     else:
-        location_text = get_hint_area(location)
-        if world.hint_dist_user.get('vague_named_items', False):
-            return (GossipText('#%s# may be on the hero\'s path.' % (location_text), ['Green']), location)
+        while True:
+            #This operation is likely to be costly (especially for large multiworlds), so cache the result for later
+            #named_item_locations: Filtered locations from all worlds that may contain named-items
+            try:
+                named_item_locations = spoiler._cached_named_item_locations
+                always_locations = spoiler._cached_always_locations
+            except AttributeError:
+                worlds = spoiler.worlds
+                all_named_items = set(itertools.chain.from_iterable([w.named_item_pool for w in worlds]))
+                if "Bottle" in all_named_items and world.settings.hint_dist == "bingo":
+                    all_named_items.update(bingoBottlesForHints)
+                named_item_locations = [location for w in worlds for location in w.get_filled_locations() if (location.item.name in all_named_items)]
+                spoiler._cached_named_item_locations = named_item_locations
+
+                always_hints = [(hint, w.id) for w in worlds for hint in getHintGroup('always', w)]                    
+                always_locations = []
+                for hint, id  in always_hints:
+                    location = worlds[id].get_location(hint.name)
+                    if location.item.name in bingoBottlesForHints and world.settings.hint_dist == 'bingo':
+                        always_item = 'Bottle'
+                    else:
+                        always_item = location.item.name
+                    always_locations.append((always_item, location.item.world.id))
+                spoiler._cached_always_locations = always_locations
+
+
+            itemname = world.named_item_pool.pop(0)
+            if itemname == "Bottle" and world.settings.hint_dist == "bingo":
+                locations = [
+                    location for location in named_item_locations
+                    if (is_not_checked(location, checked)
+                        and location.item.world.id == world.id
+                        and location.name not in world.hint_exclusions
+                        and location.item.name in bingoBottlesForHints
+                        and not location.locked
+                        and (itemname, world.id) not in always_locations
+                        and location.name not in world.hint_type_overrides['named-item'])
+                ]
+            else:
+                locations = [
+                    location for location in named_item_locations
+                    if (is_not_checked(location, checked)
+                        and location.item.world.id == world.id
+                        and location.name not in world.hint_exclusions
+                        and location.item.name == itemname
+                        and not location.locked
+                        and (itemname, world.id) not in always_locations
+                        and location.name not in world.hint_type_overrides['named-item'])
+                ]
+
+            if len(locations) > 0:
+                break
+
+            elif world.hint_dist_user['named_items_required'] and (itemname, world.id) not in always_locations:
+                raise Exception("Unable to hint item {} in world {}".format(itemname, world.id))
+
+            else:
+                logger = logging.getLogger('')
+                if (itemname, world.id) not in spoiler._cached_always_locations:
+                    logger.info("Hint for item {} in world {} skipped due to Always hint".format(itemname, world.id))
+                else:
+                    logger.info("Unable to hint item {} in world {}".format(itemname, world.id))
+
+            if len(world.named_item_pool) == 0:
+                return None
+
+        location = random.choice(locations)
+        checked.add(location.name)
+        item_text = getHint(getItemGenericName(location.item), world.settings.clearer_hints).text
+    
+        if location.parent_region.dungeon:
+            location_text = getHint(location.parent_region.dungeon.name, world.settings.clearer_hints).text
+            if world.hint_dist_user.get('vague_named_items', False):
+                return (GossipText('#Player %d\'s %s# may be on the hero\'s path.' % (location.world.id+1, location_text), ['Green']), location)
+            else:
+                return (GossipText('#Player %d\'s %s# hoards #%s#.' % (location.world.id+1, location_text, item_text), ['Green', 'Red']), location)
         else:
-            return (GossipText('#%s# can be found at #%s#.' % (item_text, location_text), ['Red', 'Green']), location)
+            location_text, _ = get_hint_area(location)
+            if world.hint_dist_user.get('vague_named_items', False):
+                return (GossipText('#Player %d\'s %s# may be on the hero\'s path.' % (location.world.id+1 , location_text), ['Green']), location)
+            else:
+                return (GossipText('#%s# can be found in #Player %d\'s %s#.' % (item_text, location.world.id+1, location_text), ['Red', 'Green']), location)
 
 
 def get_random_location_hint(spoiler, world, checked):
@@ -611,7 +705,7 @@ def get_random_location_hint(spoiler, world, checked):
         location_text = getHint(dungeon.name, world.settings.clearer_hints).text
         return (GossipText('#%s# hoards #%s#.' % (location_text, item_text), ['Green', 'Red']), location)
     else:
-        location_text = get_hint_area(location)
+        location_text, _ = get_hint_area(location)
         return (GossipText('#%s# can be found at #%s#.' % (item_text, location_text), ['Red', 'Green']), location)
 
 
@@ -811,6 +905,7 @@ def buildWorldGossipHints(spoiler, world, checkedLocations=None):
 
     if checkedLocations is None:
         checkedLocations = set()
+    checkedAlwaysLocations = set()
 
     stoneIDs = list(gossipLocations.keys())
 
@@ -935,14 +1030,13 @@ def buildWorldGossipHints(spoiler, world, checkedLocations=None):
         alwaysLocations = getHintGroup('always', world)
         for hint in alwaysLocations:
             location = world.get_location(hint.name)
-            checkedLocations.add(hint.name)
+            checkedAlwaysLocations.add(hint.name)
             if location.item.name in bingoBottlesForHints and world.settings.hint_dist == 'bingo':
                 always_item = 'Bottle'
             else:
                 always_item = location.item.name
-            if always_item in world.named_item_pool:
+            if always_item in world.named_item_pool and world.settings.world_count == 1:
                 world.named_item_pool.remove(always_item)
-
             if location.name in world.hint_text_overrides:
                 location_text = world.hint_text_overrides[location.name]
             else:
@@ -975,10 +1069,8 @@ def buildWorldGossipHints(spoiler, world, checkedLocations=None):
             raise Exception('User-provided item hints were requested, but copies per named-item hint is zero')
         else:
             for i in range(0, len(world.named_item_pool)):
-                hint = get_specific_item_hint(spoiler, world, checkedLocations)
-                if hint == None:
-                    raise Exception('No valid hints for user-provided item')
-                else:
+                hint = get_specific_item_hint(spoiler, world, checkedLocations | checkedAlwaysLocations)
+                if hint:
                     gossip_text, location = hint
                     place_ok = add_hint(spoiler, world, stoneGroups, gossip_text, hint_dist['named-item'][1], location)
                     if not place_ok:
@@ -1034,7 +1126,12 @@ def buildWorldGossipHints(spoiler, world, checkedLocations=None):
             except IndexError:
                 raise Exception('Not enough valid hints to fill gossip stone locations.')
 
-        hint = hint_func[hint_type](spoiler, world, checkedLocations)
+        allCheckedLocations = checkedLocations | checkedAlwaysLocations
+        if hint_type == 'barren':
+            hint = hint_func[hint_type](spoiler, world, checkedLocations)
+        else:
+            hint = hint_func[hint_type](spoiler, world, allCheckedLocations)
+            checkedLocations.update(allCheckedLocations - checkedAlwaysLocations)
 
         if hint == None:
             index = hint_types.index(hint_type)
@@ -1184,7 +1281,7 @@ def buildGanonText(world, messages):
     elif world.light_arrow_location:
         text = get_raw_text(getHint('Light Arrow Location', world.settings.clearer_hints).text)
         location = world.light_arrow_location
-        location_hint = get_hint_area(location)
+        location_hint, _ = get_hint_area(location)
         if world.id != location.world.id:
             text += "\x05\x42Player %d's\x05\x40 %s" % (location.world.id +1, get_raw_text(location_hint))
         else:

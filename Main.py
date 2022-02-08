@@ -24,8 +24,8 @@ from Fill import distribute_items_restrictive, ShuffleError
 from Item import Item
 from ItemPool import generate_itempool
 from Hints import buildGossipHints
+from HintList import clearHintExclusionCache
 from Utils import default_output_path, is_bundled, subprocess_args, data_path
-from version import __version__
 from N64Patch import create_patch_file, apply_patch_file
 from SettingsList import setting_infos, logic_tricks
 from Rules import set_rules, set_shop_rules
@@ -34,6 +34,7 @@ from Search import Search, RewindableSearch
 from EntranceShuffle import set_entrances
 from LocationList import set_drop_location_names
 from Goals import update_goal_items, maybe_set_light_arrows, replace_goal_names
+from version import __version__
 
 
 class dummy_window():
@@ -46,6 +47,7 @@ class dummy_window():
 
 
 def main(settings, window=dummy_window(), max_attempts=10):
+    clearHintExclusionCache()
     logger = logging.getLogger('')
     start = time.process_time()
 
@@ -129,9 +131,8 @@ def generate(settings, window=dummy_window()):
 def build_world_graphs(settings, window=dummy_window()):
     logger = logging.getLogger('')
     worlds = []
-    for i in range(1, settings.world_count):
+    for i in range(0, settings.world_count):
         worlds.append(World(i, copy.copy(settings)))
-    worlds.insert(0, World(0, settings))
 
     window.update_status('Creating the Worlds')
     for id, world in enumerate(worlds):
