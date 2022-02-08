@@ -108,6 +108,7 @@ do that.
   * New setting `Shopsanity Prices` adds additional price range options when Shopsanity is enabled, including "Affordable" which sets all prices to 10 rupees (to match the same option in Scrub Shuffle).
   * `Chest Size Matches Content` has been replaced with `Chest Appearance Matches Content`. Unique textures are applied to chests containing major items, small keys, boss keys, skulltula tokens, and remaining items. An additional option also changes chest sizes like the previous setting.
   * New cosmetic setting `Disable battle music` turns off the battle music from being near enemies, allowing the background music to continue uninterrupted.
+  * New setting `Shuffle Dungeon Bosses` allows boss rooms to be shuffled between dungeons. This is only available in glitchless logic.
 
 * **Gameplay**
   * Shortened the animation for equipping magic arrows.
@@ -151,6 +152,7 @@ do that.
   * New setting `LACS Condition` to select what goal items are required for the Light Arrows Cutscene, separate from whether Ganon's Boss Key is placed there. (Additional settings are added to control how many.)
   * `Ganon's Boss Key` now allows you to set it to the Light Arrow Cutscene (and use `LACS Condition` to set its objective) or for it to be directly awarded when meeting a configurable target number of Spiritual Stones, Medallions, Dungeons completed, or Gold Skulltula Tokens. (Additional settings are added to control how many.)
   * New `Rainbow Bridge` option `Random` that will choose one of the other options at random (besides Skulltula Tokens), and require the maximum of that goal (if applicable).
+  * New setting `Dungeon Shortcuts` opens shortcuts in blue warp dungeons to the boss room. This is toggleable per-dungeon, and affects glitchless logic.
 
 * **Hints**
   * New option `Misc. Hints` controls whether the Temple of Time altar and Ganondorf give hints, defaulting on to preserve behavior. Hell Mode disables this setting.
