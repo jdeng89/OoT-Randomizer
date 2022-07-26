@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from Hints import HintDistFiles
 from SettingsList import setting_infos, setting_map, get_setting_info, get_settings_from_section, get_settings_from_tab
-from Utils import data_path, read_json
+from Utils import data_path
 import sys
 import json
 import copy
@@ -80,19 +80,26 @@ def GetSettingJson(setting, web_version, as_array=False):
     if setting_info.disable != None:
         setting_disable = copy.deepcopy(setting_info.disable)
 
+    version_specific_keys = []
+
     for key, value in setting_info.gui_params.items():
+        version_specific = False
         if key.startswith('web:'):
             if web_version:
                 key = key[4:]
+                version_specific_keys.append(key)
+                version_specific = True
             else:
                 continue
         if key.startswith('electron:'):
             if not web_version:
                 key = key[9:]
+                version_specific_keys.append(key)
+                version_specific = True
             else:
                 continue
 
-        if key in setting_keys:
+        if key in setting_keys and (key not in version_specific_keys or version_specific):
             settingJson[key] = value
         if key == 'disable':
             for option,types in value.items():
@@ -247,7 +254,8 @@ def CreateJSON(path, web_version=False):
             settingOutputJson['cosmeticsArray'].append(tabJsonArr)
     
     for d in HintDistFiles():
-        dist = read_json(d)
+        with open(d, 'r') as dist_file:
+            dist = json.load(dist_file)
         if ('distribution' in dist and
            'goal' in dist['distribution'] and
            (dist['distribution']['goal']['fixed'] != 0 or

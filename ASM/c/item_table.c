@@ -5,23 +5,6 @@
 #include "util.h"
 #include "z64.h"
 
-enum dungeon {
-    DEKU_ID    = 0,
-    DODONGO_ID = 1,
-    JABU_ID    = 2,
-    FOREST_ID  = 3,
-    FIRE_ID    = 4,
-    WATER_ID   = 5,
-    SPIRIT_ID  = 6,
-    SHADOW_ID  = 7,
-    BOTW_ID    = 8,
-    ICE_ID     = 9,
-    TOWER_ID   = 10,
-    GTG_ID     = 11,
-    FORT_ID    = 12,
-    CASTLE_ID  = 13,
-};
-
 #define ITEM_ROW( \
         base_item_id_, chest_type_, action_id_,  text_id_, object_id_, graphic_id_, \
         upgrade_, effect_, effect_arg1_, effect_arg2_) \
@@ -36,6 +19,8 @@ enum dungeon {
 // 0x4D = Blue Rupee (minor item sound effect)
 
 // Action ID 0x41 (give kokiri tunic) is used to indicate no action.
+
+// "graphic id" - 1 indicates the entry used in the item_draw_table when rendering the GI model.
 
 item_row_t item_table[] = {
     [0x01] = ITEM_ROW(0x4D,       BROWN_CHEST, 0x8E, 0x0032, 0x00CE, 0x20, bombs_to_rupee, no_effect, -1, -1), // Bombs (5)
@@ -98,8 +83,8 @@ item_row_t item_table[] = {
     [0x3A] = ITEM_ROW(0x53,      GILDED_CHEST, 0x70, 0x007B, 0x00D7, 0x24, no_upgrade, no_effect, -1, -1), // Gerudo Membership Card
     [0x3B] = ITEM_ROW(0x53,      GILDED_CHEST, 0x41, 0x004A, 0x010E, 0x46, no_upgrade, give_fairy_ocarina, -1, -1), // Fairy Ocarina
     [0x3C] = ITEM_ROW(0x4D,       BROWN_CHEST, 0x58, 0x00DC, 0x0119, 0x48, seeds_to_rupee, no_effect, -1, -1), // Deku Seeds (5)
-    [0x3D] = ITEM_ROW(0x3D,       BROWN_CHEST, 0x72, 0x00C6, 0x00BD, 0x13, no_upgrade, full_heal, -1, -1), // Heart Container
-    [0x3E] = ITEM_ROW(0x3E,       BROWN_CHEST, 0x7A, 0x00C2, 0x00BD, 0x14, no_upgrade, full_heal, -1, -1), // Piece of Heart
+    [0x3D] = ITEM_ROW(0x3D,       BROWN_CHEST, 0x72, 0x00C6, 0x00BD, 0x13, health_upgrade_cap, clear_excess_hearts, -1, -1), // Heart Container
+    [0x3E] = ITEM_ROW(0x3E,       BROWN_CHEST, 0x7A, 0x00C2, 0x00BD, 0x14, health_upgrade_cap, full_heal, -1, -1), // Piece of Heart
     [0x3F] = ITEM_ROW(0x53,        GOLD_CHEST, 0x74, 0x00C7, 0x00B9, 0x0A, no_upgrade, no_effect, -1, -1), // Boss Key
     [0x40] = ITEM_ROW(0x53,       BROWN_CHEST, 0x75, 0x0067, 0x00B8, 0x0B, no_upgrade, no_effect, -1, -1), // Compass
     [0x41] = ITEM_ROW(0x53,       BROWN_CHEST, 0x76, 0x0066, 0x00C8, 0x1C, no_upgrade, no_effect, -1, -1), // Map
@@ -116,7 +101,7 @@ item_row_t item_table[] = {
     [0x4C] = ITEM_ROW(0x4D,       BROWN_CHEST, 0x84, 0x006F, 0x017F, 0x6D, no_upgrade, no_effect, -1, -1), // Green Rupee
     [0x4D] = ITEM_ROW(0x4D,       BROWN_CHEST, 0x85, 0x00CC, 0x017F, 0x6E, no_upgrade, no_effect, -1, -1), // Blue Rupee
     [0x4E] = ITEM_ROW(0x4D,       BROWN_CHEST, 0x86, 0x00F0, 0x017F, 0x6F, no_upgrade, no_effect, -1, -1), // Red Rupee
-    [0x4F] = ITEM_ROW(0x3D,       BROWN_CHEST, 0x72, 0x00C6, 0x00BD, 0x13, no_upgrade, full_heal, -1, -1), // Heart Container
+
     [0x50] = ITEM_ROW(0x53,      GILDED_CHEST, 0x82, 0x0098, 0x00DF, 0x30, no_upgrade, no_effect, -1, -1), // Lon Lon Milk (Refill)
     [0x51] = ITEM_ROW(0x53,      GILDED_CHEST, 0x28, 0x0014, 0x0150, 0x5B, no_upgrade, no_effect, -1, -1), // Goron Mask
     [0x52] = ITEM_ROW(0x53,      GILDED_CHEST, 0x29, 0x0015, 0x0151, 0x5C, no_upgrade, no_effect, -1, -1), // Zora Mask
@@ -155,13 +140,16 @@ item_row_t item_table[] = {
     [0x73] = ITEM_ROW(0x4D,       BROWN_CHEST, 0x85, 0x00F5, 0x017F, 0x6E, no_upgrade, no_effect, -1, -1), // Blue Rupee (Chest Game)
     [0x74] = ITEM_ROW(0x4D,       BROWN_CHEST, 0x86, 0x00F6, 0x017F, 0x6F, no_upgrade, no_effect, -1, -1), // Red Rupee (Chest Game)
     [0x75] = ITEM_ROW(0x4D,       BROWN_CHEST, 0x87, 0x00F7, 0x017F, 0x71, no_upgrade, no_effect, -1, -1), // Purple Rupee (Chest Game)
-    [0x76] = ITEM_ROW(0x53,       BROWN_CHEST, 0x7A, 0x00FA, 0x00BD, 0x14, no_upgrade, full_heal, -1, -1), // Piece of Heart (Chest Game)
+    [0x76] = ITEM_ROW(0x53,       BROWN_CHEST, 0x7A, 0x00FA, 0x00BD, 0x14, health_upgrade_cap, full_heal, -1, -1), // Piece of Heart (Chest Game)
     [0x77] = ITEM_ROW(0x53,       BROWN_CHEST, 0x98, 0x0090, 0x00C7, 0x1B, no_upgrade, no_effect, -1, -1), // Deku Stick Upgrade (20)
     [0x78] = ITEM_ROW(0x53,       BROWN_CHEST, 0x99, 0x0091, 0x00C7, 0x1B, no_upgrade, no_effect, -1, -1), // Deku Stick Upgrade (30)
     [0x79] = ITEM_ROW(0x53,       BROWN_CHEST, 0x9A, 0x00A7, 0x00BB, 0x12, no_upgrade, no_effect, -1, -1), // Deku Nut Upgrade (30)
     [0x7A] = ITEM_ROW(0x53,       BROWN_CHEST, 0x9B, 0x00A8, 0x00BB, 0x12, no_upgrade, no_effect, -1, -1), // Deku Nut Upgrade (40)
     [0x7B] = ITEM_ROW(0x53,      GILDED_CHEST, 0x49, 0x006C, 0x017B, 0x73, no_upgrade, no_effect, -1, -1), // Bullet Bag (50)
     [0x7C] = ITEM_ROW(0x53,      GILDED_CHEST, 0x41, 0x9002, 0x0000, 0x00, no_upgrade, ice_trap_effect, -1, -1), // Ice Trap
+    [0x7D] = ITEM_ROW(0x3E,       BROWN_CHEST, 0x41, 0x90C2, 0x00BD, 0x14, no_upgrade, full_heal, -1, -1), // Capped Piece of Heart
+    [0x7E] = ITEM_ROW(0x3E,       BROWN_CHEST, 0x41, 0x90C6, 0x00BD, 0x13, no_upgrade, full_heal, -1, -1), // Capped Heart Container
+    [0x7F] = ITEM_ROW(0x53,       BROWN_CHEST, 0x41, 0x90FA, 0x00BD, 0x14, no_upgrade, full_heal, -1, -1), // Capped Piece of Heart (Chest Game)
 
     [0x80] = ITEM_ROW(  -1,      GILDED_CHEST,   -1,     -1, 0x00DD, 0x2D, hookshot_upgrade,  no_effect, -1, -1), // Progressive Hookshot
     [0x81] = ITEM_ROW(  -1,      GILDED_CHEST,   -1,     -1, 0x0147, 0x58, strength_upgrade,  no_effect, -1, -1), // Progressive Strength
@@ -246,7 +234,17 @@ item_row_t item_table[] = {
     [0xC7] = ITEM_ROW(0x53,      GILDED_CHEST, 0x41, 0x00F8, 0x00D1, 0x23, no_upgrade, give_tycoon_wallet, 3, -1), // Tycoon's Wallet
     [0xC8] = ITEM_ROW(0x53,      GILDED_CHEST, 0x14, 0x9099, 0x010B, 0x45, no_upgrade, no_effect, -1, -1), // Redundant Letter Bottle
     [0xC9] = ITEM_ROW(0x53,      GILDED_CHEST, 0x41, 0x9048, 0x00F3, 0x3E, no_upgrade, give_bean_pack, -1, -1), // Magic Bean Pack
-    [0xCA] = ITEM_ROW(0x53,      GILDED_CHEST, 0x41, 0x9003, 0x0193, 0x35, no_upgrade, give_triforce_piece, -1, -1), // Triforce piece
+    [0xCA] = ITEM_ROW(0x53,      GILDED_CHEST, 0x41, 0x9003, 0x0193, 0x76, no_upgrade, give_triforce_piece, -1, -1), // Triforce piece
+
+    [0xCB] = ITEM_ROW(0x53,      SILVER_CHEST, 0x41, 0x9010, 0x0195, 0x77, no_upgrade, give_small_key_ring, FOREST_ID, -1), // Forest Temple Small Key Ring
+    [0xCC] = ITEM_ROW(0x53,      SILVER_CHEST, 0x41, 0x9011, 0x0195, 0x77, no_upgrade, give_small_key_ring, FIRE_ID,   -1), // Fire Temple Small Key Ring
+    [0xCD] = ITEM_ROW(0x53,      SILVER_CHEST, 0x41, 0x9012, 0x0195, 0x77, no_upgrade, give_small_key_ring, WATER_ID,  -1), // Water Temple Small Key Ring
+    [0xCE] = ITEM_ROW(0x53,      SILVER_CHEST, 0x41, 0x9013, 0x0195, 0x77, no_upgrade, give_small_key_ring, SPIRIT_ID, -1), // Spirit Temple Small Key Ring
+    [0xCF] = ITEM_ROW(0x53,      SILVER_CHEST, 0x41, 0x9014, 0x0195, 0x77, no_upgrade, give_small_key_ring, SHADOW_ID, -1), // Shadow Temple Small Key Ring
+    [0xD0] = ITEM_ROW(0x53,      SILVER_CHEST, 0x41, 0x9015, 0x0195, 0x77, no_upgrade, give_small_key_ring, BOTW_ID,   -1), // Bottom of the Well Small Key Ring
+    [0xD1] = ITEM_ROW(0x53,      SILVER_CHEST, 0x41, 0x9016, 0x0195, 0x77, no_upgrade, give_small_key_ring, GTG_ID,    -1), // Gerudo Training Small Key Ring
+    [0xD2] = ITEM_ROW(0x53,      SILVER_CHEST, 0x41, 0x9017, 0x0195, 0x77, no_upgrade, give_small_key_ring, FORT_ID,   -1), // Gerudo Fortress Small Key Ring
+    [0xD3] = ITEM_ROW(0x53,      SILVER_CHEST, 0x41, 0x9018, 0x0195, 0x77, no_upgrade, give_small_key_ring, CASTLE_ID, -1), // Ganon's Castle Small Key Ring
 
 };
 
